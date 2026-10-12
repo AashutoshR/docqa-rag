@@ -444,6 +444,20 @@ button { cursor: pointer; }
 .dialog-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
 .dialog-head h2 { font: 500 1.4rem var(--serif); }
 
+.gate { width: min(420px, calc(100% - 32px)); }
+.gate form { display: grid; gap: 12px; justify-items: start; }
+.gate h2 { font: 500 1.4rem var(--serif); }
+.gate p { color: var(--muted); }
+.gate .upload-error { margin: 0; color: var(--danger); }
+.gate input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  font-size: 1rem;
+}
+
 /* Small screens */
 
 @media (max-width: 760px) {

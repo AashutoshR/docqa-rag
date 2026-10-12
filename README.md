@@ -80,12 +80,39 @@ The Pinecone index is created on first run. Supported formats are PDF, `.docx`, 
 
 The free tiers impose two limits. Groq caps tokens per minute, so several questions in quick succession are delayed while the application waits and retries. Pinecone's Starter plan allows a limited number of rerank requests per month; once they are used up, the application continues with vector ranking alone.
 
-A smaller Streamlit interface is included, along with a command-line entry point for indexing a folder:
+A smaller Streamlit interface is included, along with a command-line entry point for indexing a folder. Streamlit and the test suite are installed from `requirements-dev.txt`:
 
 ```bash
+pip install -r requirements-dev.txt
 streamlit run app.py
 python -m docqa.ingest data/sample --namespace sample
 ```
+
+## Deployment
+
+Run locally, the application keeps a single library on one machine. The same code can be hosted so that other people use it through a link. The repository includes a Render Blueprint (`render.yaml`) for that, and a `Dockerfile` for hosts that run containers.
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/AashutoshR/docqa-rag)
+
+Render asks for three values during setup: the Groq key, the Pinecone key, and an access code of your choosing. The Blueprint sets the rest.
+
+| Setting | Hosted value | Effect |
+| --- | --- | --- |
+| `WORKSPACES` | `on` | Each browser gets a private library. Visitors cannot see, search or remove one another's documents. |
+| `ACCESS_CODE` | chosen at setup | The API rejects requests without the code, so a leaked link alone does not expose the service or its API quota. |
+| `MAX_UPLOAD_MB` | `25` | Upload size limit, sized for the 512 MB free instance. |
+| `MAX_DOCUMENTS` | `10` | Documents allowed per library. |
+| `PINECONE_INDEX` | `docqa-web` | A separate index from local development. |
+
+Workspaces need no accounts. On first visit the browser generates a random identifier and keeps it in local storage. Every chunk that browser uploads carries the identifier in its ID and metadata, and every search is filtered by it on the server. The list of documents in each library is stored in Pinecone as well, so a restart of the server loses nothing.
+
+This arrangement suits sharing with a small group. It has clear limits:
+
+- A free Render instance sleeps after 15 minutes without traffic, and the next request takes about a minute to wake it.
+- All visitors draw on the same Groq and Pinecone free-tier quotas.
+- A library belongs to a browser, not a person. Clearing site data, or switching device, starts a new empty library.
+
+Charging for access would require user accounts, per-user quotas and paid model tiers, none of which are implemented.
 
 ## Architecture
 
@@ -176,7 +203,7 @@ The script accepts `--retrieval-only` to skip answer generation, `--no-rerank` t
 pytest
 ```
 
-The suite has 45 tests. Pinecone and the language models are replaced with in-memory fakes, so the tests run offline and need no API keys.
+The suite has 52 tests, installed with `requirements-dev.txt`. Pinecone and the language models are replaced with in-memory fakes, so the tests run offline and need no API keys.
 
 ## Project structure
 
@@ -191,10 +218,12 @@ docqa/
   retriever.py      Vector search, reranking, merging results across queries
   chain.py          Query planning, prompts, cited answers, suggested questions
   word.py           Text extraction for .docx and legacy .doc
-  library.py        Local record of indexed documents
+  library.py        The list of documents in each library, stored in Pinecone
 eval/               Question sets and the evaluation script
 data/sample/        Two short sample documents about a fictional company
 tests/              Offline tests
+render.yaml         Render Blueprint for hosting
+Dockerfile          Container image for other hosts
 ```
 
 ## Configuration

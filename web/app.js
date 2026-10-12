@@ -13,6 +13,33 @@ const state = {
 };
 let pollTimer;
 
+// Values kept in this browser. Storage can be blocked, so fall back to memory.
+const memory = {};
+function stored(key, value) {
+  try {
+    if (value !== undefined) localStorage.setItem(key, value);
+    return localStorage.getItem(key);
+  } catch {
+    if (value !== undefined) memory[key] = value;
+    return memory[key] || null;
+  }
+}
+
+// Each browser gets a random ID, and the server keeps a separate library for each one.
+function workspaceId() {
+  let id = stored("docqa-workspace");
+  if (!id) {
+    const bytes = crypto.getRandomValues(new Uint8Array(16));
+    id = [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+    stored("docqa-workspace", id);
+  }
+  return id;
+}
+
+function identity() {
+  return { "X-Workspace": workspaceId(), "X-Access-Code": stored("docqa-access-code") || "" };
+}
+
 function el(tag, className, text) {
   const node = document.createElement(tag);
   if (className) node.className = className;
@@ -39,8 +66,12 @@ function displayName(fileName) {
     .trim();
 }
 
-async function api(path, options) {
-  const response = await fetch(path, options);
+async function api(path, options = {}) {
+  const response = await fetch(path, { ...options, headers: { ...identity(), ...options.headers } });
+  if (response.status === 401) {
+    askForAccessCode();
+    throw new Error("Enter the access code to continue.");
+  }
   if (!response.ok) {
     const detail = await response.json().then((body) => body.detail, () => null);
     throw new Error(typeof detail === "string" ? detail : `Request failed (${response.status})`);
@@ -66,7 +97,7 @@ async function refresh() {
     state.jobs = data.jobs;
     notify("server", "");
   } catch {
-    notify("server", "Can't reach the DocQA server. Is it still running?");
+    if (!$("gate").open) notify("server", "Can't reach the DocQA server. Is it still running?");
   }
   render();
   if (state.jobs.some((job) => ACTIVE.has(job.status))) pollTimer = setTimeout(refresh, 1000);
@@ -383,13 +414,17 @@ async function ask(question) {
   try {
     const response = await fetch("/api/ask", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...identity() },
       body: JSON.stringify({
         question,
         history: state.history.slice(-6),
         documents: included.length === state.documents.length ? null : included,
       }),
     });
+    if (response.status === 401) {
+      askForAccessCode();
+      throw new Error("Enter the access code to continue.");
+    }
     if (!response.ok) throw new Error(`Request failed (${response.status})`);
 
     for await (const event of readEvents(response)) {
@@ -467,18 +502,47 @@ function setUpChat() {
   document.querySelector(".chat").addEventListener("click", () => $("sidebar").classList.remove("open"));
 }
 
-async function showStatus() {
+/* Access code: only asked for when the server is configured with one */
+
+function askForAccessCode() {
+  if (!$("gate").open) $("gate").showModal();
+  $("gate-code").focus();
+}
+
+function setUpGate() {
+  $("gate").addEventListener("cancel", (event) => event.preventDefault());
+  $("gate-form").onsubmit = async (event) => {
+    event.preventDefault();
+    stored("docqa-access-code", $("gate-code").value.trim());
+    const check = await fetch("/api/library", { headers: identity() }).catch(() => null);
+    const rejected = !check || check.status === 401;
+    $("gate-error").hidden = !rejected;
+    if (rejected) return;
+    $("gate").close();
+    $("gate-code").value = "";
+    refresh();
+  };
+}
+
+async function start() {
+  let status = null;
   try {
-    const status = await api("/api/status");
-    if (status.missing_keys.length) {
-      notify("keys", `Add ${status.missing_keys.join(" and ")} to the .env file, then restart the server.`);
-    }
-    $("models").textContent = `Answers by ${status.chat_model} · search by ${status.embedding_model}`;
+    status = await fetch("/api/status").then((response) => response.json());
   } catch {
     /* refresh() reports an unreachable server */
   }
+  if (status) {
+    if (status.missing_keys.length) {
+      notify("keys", `Add ${status.missing_keys.join(" and ")} to the server's settings, then restart it.`);
+    }
+    $("models").textContent = `Answers by ${status.chat_model} · search by ${status.embedding_model}`;
+    $("upload-limit").textContent = `PDF, Word, TXT or Markdown, up to ${status.max_upload_mb} MB each`;
+  }
+  if (status?.access_code_required && !stored("docqa-access-code")) askForAccessCode();
+  else refresh();
 }
 
 setUpUploader();
 setUpChat();
-refresh().then(showStatus);
+setUpGate();
+start();

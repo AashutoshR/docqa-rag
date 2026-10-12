@@ -1,0 +1,10 @@
+.env
+.venv
+.git
+.docqa
+__pycache__
+.pytest_cache
+data
+docs
+eval
+tests

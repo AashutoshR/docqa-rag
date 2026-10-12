@@ -1,5 +1,4 @@
 fastapi>=0.143,<1
-httpx>=0.28,<1
 langchain>=1.4,<2
 langchain-groq>=1.1,<2
 langchain-openai>=1.7,<2
@@ -8,8 +7,6 @@ langchain-text-splitters>=1.1,<2
 olefile>=0.47,<1
 pinecone>=7.3,<8
 pypdf>=6.20,<7
-streamlit>=1.65,<2
 python-dotenv>=1.2,<2
 python-multipart>=0.0.32
 uvicorn>=0.54,<1
-pytest>=9.1,<10

@@ -57,7 +57,7 @@
           <input id="files" type="file" accept=".pdf,.docx,.doc,.txt,.md" multiple>
           <svg class="icon"><use href="#i-upload"/></svg>
           <span class="dropzone-title">Drop files here, or <u>choose files</u></span>
-          <span class="dropzone-hint">PDF, Word, TXT or Markdown, up to 100 MB each</span>
+          <span id="upload-limit" class="dropzone-hint">PDF, Word, TXT or Markdown, up to 100 MB each</span>
         </label>
         <p id="upload-error" class="upload-error" role="alert" hidden></p>
       </div>
@@ -108,6 +108,16 @@
       </form>
     </section>
   </div>
+
+  <dialog id="gate" class="dialog gate">
+    <form id="gate-form">
+      <h2>Enter the access code</h2>
+      <p>This copy of DocQA is private. Ask the person who sent you the link for the code.</p>
+      <input id="gate-code" type="text" autocomplete="off" spellcheck="false" aria-label="Access code" required>
+      <p id="gate-error" class="upload-error" role="alert" hidden>That code wasn't accepted.</p>
+      <button class="button primary" type="submit">Continue</button>
+    </form>
+  </dialog>
 
   <dialog id="add-dialog" class="dialog">
     <div class="dialog-head">

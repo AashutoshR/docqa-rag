@@ -41,15 +41,22 @@ def retrieve(
     top_k: int | None = None,
     min_score: float | None = None,
     documents: list[str] | None = None,
+    workspace: str = "",
 ) -> list[Source]:
     """Return the best-matching chunks, best first, dropping weak matches.
 
-    `documents` restricts the search to the named files.
+    `documents` restricts the search to the named files, and `workspace` to
+    one user's library.
     """
     k = settings.top_k if top_k is None else top_k
     threshold = settings.min_score if min_score is None else min_score
 
-    search = {"filter": {"source": {"$in": documents}}} if documents else {}
+    conditions = {}
+    if workspace:
+        conditions["workspace"] = workspace
+    if documents:
+        conditions["source"] = {"$in": documents}
+    search = {"filter": conditions} if conditions else {}
     hits = store.similarity_search_with_score(question, k=k, namespace=namespace, **search)
     sources = [
         Source(

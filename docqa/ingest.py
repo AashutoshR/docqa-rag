@@ -121,19 +121,24 @@ def sample_excerpts(chunks: list[Document], count: int = 4) -> tuple[str, ...]:
     return tuple(chunks[int(step * (i + 1))].page_content for i in range(count))
 
 
-def id_prefix(name: str) -> str:
-    """Prefix shared by every chunk of a file, whatever its content."""
-    return hashlib.sha1(name.encode("utf-8")).hexdigest()[:12] + ":"
+def id_prefix(name: str, workspace: str = "") -> str:
+    """Prefix shared by every chunk of a file, whatever its content.
+
+    A workspace's chunks all start with its ID, so one user's files can be
+    listed and deleted without touching anyone else's.
+    """
+    owner = f"{workspace}:" if workspace else ""
+    return owner + hashlib.sha1(name.encode("utf-8")).hexdigest()[:12] + ":"
 
 
-def chunk_ids(name: str, data: bytes, count: int) -> list[str]:
+def chunk_ids(name: str, data: bytes, count: int, workspace: str = "") -> list[str]:
     """IDs are derived from file name and content, so re-ingesting is idempotent.
 
     They also depend on PIPELINE_VERSION, so files indexed by an older version
     of the cleaning and chunking code are replaced when uploaded again.
     """
     content = hashlib.sha256(PIPELINE_VERSION.encode() + data).hexdigest()[:12]
-    return [f"{id_prefix(name)}{content}:{i}" for i in range(count)]
+    return [f"{id_prefix(name, workspace)}{content}:{i}" for i in range(count)]
 
 
 def _existing_ids(index, prefix: str, namespace: str) -> list[str]:
@@ -173,6 +178,7 @@ def ingest_bytes(
     namespace: str,
     settings: Settings,
     kind: str = "document",
+    workspace: str = "",
     on_progress: Callable[[int, int], None] | None = None,
 ) -> IngestResult:
     """Index one file. Unchanged files are skipped; changed files are replaced.
@@ -185,8 +191,9 @@ def ingest_bytes(
     if not chunks:
         return IngestResult(name, "empty")
 
-    ids = chunk_ids(name, data, len(chunks))
-    existing = set(_existing_ids(index, id_prefix(name), namespace))
+    ids = chunk_ids(name, data, len(chunks), workspace)
+    existing = set(_existing_ids(index, id_prefix(name, workspace), namespace))
+    tags = {"kind": kind, "workspace": workspace} if workspace else {"kind": kind}
     excerpts = sample_excerpts(chunks)
     if existing == set(ids):
         return IngestResult(name, "skipped", len(ids), len(pages), excerpts)
@@ -198,7 +205,7 @@ def ingest_bytes(
         _add_with_retry(
             store,
             texts=[chunks[i].page_content for i in batch],
-            metadatas=[{**chunks[i].metadata, "kind": kind} for i in batch],
+            metadatas=[{**chunks[i].metadata, **tags} for i in batch],
             ids=[ids[i] for i in batch],
             namespace=namespace,
         )
@@ -211,9 +218,9 @@ def ingest_bytes(
     return IngestResult(name, "replaced" if stale else "added", len(ids), len(pages), excerpts)
 
 
-def delete_document(name: str, *, index, namespace: str) -> int:
+def delete_document(name: str, *, index, namespace: str, workspace: str = "") -> int:
     """Remove every chunk of a file from the index. Returns how many were removed."""
-    ids = _existing_ids(index, id_prefix(name), namespace)
+    ids = _existing_ids(index, id_prefix(name, workspace), namespace)
     _delete_ids(index, ids, namespace)
     return len(ids)
 

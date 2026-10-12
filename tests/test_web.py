@@ -1,6 +1,7 @@
 """Offline tests for uploads with progress, the library record and the web API."""
 
 import json
+from dataclasses import replace
 from types import SimpleNamespace
 
 import pytest
@@ -93,19 +94,60 @@ def test_retrieve_can_be_limited_to_chosen_documents():
     assert store.last_filter == {"source": {"$in": ["a.pdf"]}}
 
 
-def test_library_records_documents_per_collection(tmp_path):
-    library = Library(tmp_path / "nested" / "library.json")
-    assert library.list("main") == []
-    library.add("main", "a.pdf", "book", 300, 900)
-    library.add("other", "b.pdf", "paper", 12, 40)
-    library.add("main", "a.pdf", "article", 301, 901)  # re-upload replaces the entry
-    assert [(d["name"], d["kind"], d["pages"]) for d in library.list("main")] == [
+def test_library_keeps_each_workspace_separate_and_survives_a_restart():
+    index = FakeIndex()
+    library = Library(index, "main", dimension=4)
+    assert library.documents("alice") == []
+    library.add("alice", "a.pdf", "book", 300, 900, ["What is X?"])
+    library.add("bob", "b.pdf", "paper", 12, 40)
+    library.add("", "shared.pdf", "article", 1, 2)
+    library.add("alice", "a.pdf", "article", 301, 901)  # re-upload replaces the entry
+    assert [(d["name"], d["kind"], d["pages"]) for d in library.documents("alice")] == [
         ("a.pdf", "article", 301)
     ]
-    library.remove("main", "a.pdf")
-    library.remove("main", "missing.pdf")
-    assert library.list("main") == []
-    assert len(Library(library.path).list("other")) == 1
+    assert [d["name"] for d in library.documents("")] == ["shared.pdf"]
+
+    # A new process has no memory of these writes and must read them back from the index.
+    restarted = Library(index, "main", dimension=4)
+    (bob,) = restarted.documents("bob")
+    assert (bob["name"], bob["pages"], bob["chunks"], bob["questions"]) == ("b.pdf", 12, 40, [])
+    assert set(index.records) == {"main-library"}
+
+    library.remove("alice", "a.pdf")
+    library.remove("alice", "missing.pdf")
+    assert library.documents("alice") == []
+    assert len(library.documents("bob")) == 1
+
+
+def test_library_shows_its_own_writes_before_the_index_catches_up():
+    class LaggingIndex(FakeIndex):
+        def list(self, prefix, namespace):
+            return iter(())  # the index hasn't registered anything yet
+
+    library = Library(LaggingIndex(), "main", dimension=4)
+    library.add("alice", "a.pdf", "book", 3, 9)
+    assert [d["name"] for d in library.documents("alice")] == ["a.pdf"]
+    assert library.documents("bob") == []
+    library.remove("alice", "a.pdf")
+    assert library.documents("alice") == []
+
+
+def test_chunks_are_tagged_and_searched_by_workspace():
+    index = FakeIndex()
+    store = FakeStore(index, [hit("text", 0.9)])
+    ingest_bytes(
+        "book.txt", TEXT, store=store, index=index, namespace="ns", settings=SETTINGS, workspace="alice"
+    )
+    assert store.last_metadata["workspace"] == "alice"
+    assert all(chunk_id.startswith("alice:") for chunk_id in index.vectors["ns"])
+
+    retrieve("q", store=store, namespace="ns", settings=SETTINGS, workspace="alice")
+    assert store.last_filter == {"workspace": "alice"}
+    retrieve("q", store=store, namespace="ns", settings=SETTINGS, workspace="alice", documents=["a.pdf"])
+    assert store.last_filter == {"workspace": "alice", "source": {"$in": ["a.pdf"]}}
+
+    assert delete_document("book.txt", index=index, namespace="ns", workspace="bob") == 0
+    assert delete_document("book.txt", index=index, namespace="ns", workspace="alice") > 0
 
 
 class InlineWorker:
@@ -114,13 +156,19 @@ class InlineWorker:
 
 
 @pytest.fixture
-def client(monkeypatch, tmp_path):
+def client(monkeypatch):
     index = FakeIndex()
     store = FakeStore(index, [hit("Leave is 24 days.", 0.9, source="handbook.txt", page=1)])
     llm = FakeLLM()
-    bundle = SimpleNamespace(index=index, store=store, llm=llm, planner=llm, reranker=None)
+    bundle = SimpleNamespace(
+        index=index,
+        store=store,
+        llm=llm,
+        planner=llm,
+        reranker=None,
+        library=Library(index, SETTINGS.namespace, SETTINGS.embedding_dim),
+    )
     monkeypatch.setattr(server, "resources", lambda: bundle)
-    monkeypatch.setattr(server, "library", Library(tmp_path / "library.json"))
     monkeypatch.setattr(server, "worker", InlineWorker())
     monkeypatch.setattr(server, "jobs", {})
     monkeypatch.setattr(server, "settings", SETTINGS)
@@ -129,8 +177,8 @@ def client(monkeypatch, tmp_path):
     return test_client
 
 
-def upload(client, name="handbook.txt", data=TEXT, kind="book"):
-    return client.post("/api/upload", files={"file": (name, data)}, data={"kind": kind})
+def upload(client, name="handbook.txt", data=TEXT, kind="book", **kwargs):
+    return client.post("/api/upload", files={"file": (name, data)}, data={"kind": kind}, **kwargs)
 
 
 def test_home_page_and_assets_are_served(client):
@@ -218,6 +266,78 @@ def test_ask_reports_errors_in_the_stream(client, monkeypatch):
     assert ask(client, question="q") == [
         {"type": "error", "message": "The free model is rate-limited right now. Wait a few seconds and try again."}
     ]
+
+
+ALICE = {"X-Workspace": "a" * 32}
+BOB = {"X-Workspace": "b" * 32}
+
+
+def test_workspaces_give_each_visitor_a_private_library(client, monkeypatch):
+    monkeypatch.setattr(server, "settings", replace(SETTINGS, workspaces=True))
+    assert client.get("/api/library").status_code == 400  # no workspace ID sent
+    assert client.get("/api/library", headers={"X-Workspace": "../etc"}).status_code == 400
+
+    job = upload(client, headers=ALICE).json()
+    assert job["status"] == "done" and "workspace" not in job
+    assert [d["name"] for d in client.get("/api/library", headers=ALICE).json()["documents"]] == [
+        "handbook.txt"
+    ]
+    assert client.get("/api/library", headers=BOB).json() == {"documents": [], "jobs": []}
+
+    response = client.post("/api/ask", json={"question": "q"}, headers=ALICE)
+    assert response.status_code == 200
+    assert client.store.last_filter == {"workspace": ALICE["X-Workspace"]}
+
+    # Bob can't remove Alice's document, even knowing its name.
+    assert client.delete("/api/library/handbook.txt", headers=BOB).json() == {"removed": 0}
+    assert len(client.get("/api/library", headers=ALICE).json()["documents"]) == 1
+    assert client.delete("/api/library/handbook.txt", headers=ALICE).json()["removed"] > 0
+    assert client.index.vectors[SETTINGS.namespace] == {}
+
+
+def test_jobs_are_only_visible_to_the_workspace_that_started_them(client, monkeypatch):
+    monkeypatch.setattr(server, "settings", replace(SETTINGS, workspaces=True))
+    job = upload(client, name="blank.txt", data=b"  ", headers=ALICE).json()
+    assert job["status"] == "error"
+    assert client.get("/api/library", headers=BOB).json()["jobs"] == []
+    client.delete(f"/api/jobs/{job['id']}", headers=BOB)
+    assert client.get("/api/library", headers=ALICE).json()["jobs"] == [job]
+
+
+def test_access_code_guards_the_api_but_not_the_page(client, monkeypatch):
+    monkeypatch.setattr(server, "settings", replace(SETTINGS, access_code="open-sesame"))
+    assert client.get("/").status_code == 200
+    assert client.get("/api/status").json()["access_code_required"] is True
+    for request in (
+        lambda **kw: client.get("/api/library", **kw),
+        lambda **kw: upload(client, **kw),
+        lambda **kw: client.post("/api/ask", json={"question": "q"}, **kw),
+        lambda **kw: client.delete("/api/library/handbook.txt", **kw),
+    ):
+        assert request().status_code == 401
+        assert request(headers={"X-Access-Code": "wrong"}).status_code == 401
+        assert request(headers={"X-Access-Code": "open-sesame"}).status_code == 200
+
+
+def test_upload_limits_on_size_and_number_of_documents(client, monkeypatch):
+    monkeypatch.setattr(server, "settings", replace(SETTINGS, max_documents=2, max_upload_mb=1))
+    assert upload(client, name="big.txt", data=b"x" * (1024 * 1024 + 1)).status_code == 413
+    assert upload(client, name="one.txt").status_code == 200
+    assert upload(client, name="two.txt").status_code == 200
+    full = upload(client, name="three.txt")
+    assert full.status_code == 409 and "limited to 2 documents" in full.json()["detail"]
+    assert upload(client, name="two.txt").status_code == 200  # replacing is still allowed
+    client.delete("/api/library/one.txt")
+    assert upload(client, name="three.txt").status_code == 200
+
+
+def test_errors_shown_to_visitors_carry_no_internal_detail(client, monkeypatch):
+    def broken():
+        raise RuntimeError("secret connection string")
+
+    monkeypatch.setattr(server, "resources", broken)
+    (event,) = ask(client, question="q")
+    assert event["type"] == "error" and "secret" not in event["message"]
 
 
 def test_upload_stores_suggested_questions_and_survives_a_failing_suggester(client, monkeypatch):

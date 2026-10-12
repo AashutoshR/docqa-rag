@@ -1,0 +1,33 @@
+# Render Blueprint: deploys the web app from this repository.
+# https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: docqa
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn server:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/status
+    autoDeployTrigger: commit
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.13.5
+      # Entered once in the Render dashboard; never stored in the repository.
+      - key: GROQ_API_KEY
+        sync: false
+      - key: PINECONE_API_KEY
+        sync: false
+      # Visitors must enter this code before they can use the app.
+      - key: ACCESS_CODE
+        sync: false
+      # A separate index from local development.
+      - key: PINECONE_INDEX
+        value: docqa-web
+      # Give every browser its own private library.
+      - key: WORKSPACES
+        value: "on"
+      # Sized for the free instance (512 MB of memory).
+      - key: MAX_UPLOAD_MB
+        value: "25"
+      - key: MAX_DOCUMENTS
+        value: "10"

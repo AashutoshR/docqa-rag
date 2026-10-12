@@ -169,6 +169,7 @@ def ask(
     top_k: int | None = None,
     min_score: float | None = None,
     documents: list[str] | None = None,
+    workspace: str = "",
 ) -> Answer:
     """Plan the search, retrieve, then answer.
 
@@ -186,6 +187,7 @@ def ask(
         top_k=top_k,
         min_score=min_score,
         documents=documents,
+        workspace=workspace,
     )
     if not sources:
         return Answer(standalone, searches, [], iter([NOT_FOUND]))

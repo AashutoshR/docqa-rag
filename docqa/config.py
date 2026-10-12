@@ -55,6 +55,15 @@ class Settings:
     # scores almost everything between 0.7 and 0.9.
     min_score: float = 0.75
 
+    # Hosting. With workspaces on, every browser gets its own private library.
+    # Off, the default, keeps one shared library, which suits running locally.
+    workspaces: bool = False
+    # If set, the API only answers requests that send this code.
+    access_code: str = ""
+    max_upload_mb: int = 100
+    # Documents allowed per library; 0 means no limit.
+    max_documents: int = 0
+
     @classmethod
     def from_env(cls) -> "Settings":
         env = os.environ
@@ -77,6 +86,10 @@ class Settings:
             reranker=env.get("RERANKER", d.reranker),
             rerank_candidates=int(env.get("RERANK_CANDIDATES", d.rerank_candidates)),
             min_score=float(env.get("MIN_SCORE", d.min_score)),
+            workspaces=env.get("WORKSPACES", "").strip().lower() in ("1", "on", "true", "yes"),
+            access_code=env.get("ACCESS_CODE", "").strip(),
+            max_upload_mb=int(env.get("MAX_UPLOAD_MB", d.max_upload_mb)),
+            max_documents=int(env.get("MAX_DOCUMENTS", d.max_documents)),
         )
 
     def missing_keys(self, chat: bool = True) -> list[str]:

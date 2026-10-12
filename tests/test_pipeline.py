@@ -26,17 +26,31 @@ TEXT = ("Annual leave is 24 days. " * 30).encode()
 
 
 class FakeIndex:
+    """Chunk text and (for records written with upsert) metadata, by namespace and ID."""
+
     def __init__(self):
         self.vectors: dict[str, dict[str, str]] = {}
+        self.records: dict[str, dict[str, dict]] = {}
 
     def list(self, prefix, namespace):
-        ids = [i for i in self.vectors.get(namespace, {}) if i.startswith(prefix)]
+        stored = {**self.vectors.get(namespace, {}), **self.records.get(namespace, {})}
+        ids = [i for i in stored if i.startswith(prefix)]
         if ids:
             yield ids
 
     def delete(self, ids, namespace):
         for i in ids:
-            del self.vectors[namespace][i]
+            self.vectors.get(namespace, {}).pop(i, None)
+            self.records.get(namespace, {}).pop(i, None)
+
+    def upsert(self, vectors, namespace):
+        for vector in vectors:
+            self.records.setdefault(namespace, {})[vector["id"]] = vector["metadata"]
+
+    def fetch(self, ids, namespace):
+        stored = self.records.get(namespace, {})
+        found = {i: SimpleNamespace(metadata=stored[i]) for i in ids if i in stored}
+        return SimpleNamespace(vectors=found)
 
 
 class FakeStore:
