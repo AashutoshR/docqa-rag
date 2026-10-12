@@ -1,28 +1,62 @@
-# DocQA: question answering over your own documents
+# DocQA
 
-A retrieval-augmented generation (RAG) chatbot. Upload books, articles or research papers (PDF, Word, text or Markdown), ask questions, and get answers that cite the exact passages and pages they came from. If the documents don't contain the answer, it says so instead of guessing.
+Ask questions about your own PDFs and Word files, and get answers that point to the page they came from.
 
-![DocQA answering a question with numbered citations](docs/answer.jpg)
+![An answer about HTTP redirects with numbered citations](docs/answer.jpg)
 
-Built with Python, LangChain, Pinecone and FastAPI, with a plain HTML, CSS and JavaScript frontend. By default it runs entirely on free tiers: Groq for the chat models and Pinecone for embeddings, vector search and reranking. OpenAI can be swapped in through settings.
+You upload a book, an article or a research paper. The app splits it into passages and indexes them, and then you ask questions in plain English. Every answer cites its sources, and when the documents don't cover a question it says so instead of making something up.
 
-## Screenshots
+It started from the usual RAG tutorial shape: load, chunk, embed, retrieve, answer. Most of what's here beyond that came from testing it on real books and fixing the places where it broke. Those are written up [further down](#does-it-work).
 
-**1. Upload.** The app opens by asking what you want to upload: a book, an article or a research paper.
+Everything runs on free tiers. Groq serves the language models, and Pinecone handles embeddings, vector search and reranking. The backend is FastAPI with LangChain. The frontend is plain HTML, CSS and JavaScript with no build step.
 
-![The upload screen with three document types and a drop zone](docs/upload.jpg)
+## Using it
 
-**2. Library.** Uploads are indexed with a progress bar and queue one after another. Each document gets suggested questions generated from its own text.
+With an empty library, the app asks for a file and what kind of document it is.
 
-![The library sidebar showing upload progress, with suggested questions in the main area](docs/library.jpg)
+![The upload screen](docs/upload.jpg)
 
-**3. Cited answers.** Clicking a citation opens the passage it came from. Here only two of five documents are ticked, so the search is limited to them, and the question was split into two searches.
+A full book takes a minute or two to index, so uploads show their progress and queue behind each other. Once a document is in, the app reads a few passages from it and proposes questions you could ask. That helps when you've just uploaded something and don't know where to start.
 
-![An answer with its source passage open, searching two of five documents](docs/sources.jpg)
+![The library with two uploads in progress and suggested questions](docs/library.jpg)
 
-**4. Questions across documents.** One question about two unrelated topics is answered from a book and a research paper together, each part cited separately. Shown in the dark theme.
+Answers stream in with numbered citations. Click a number and the passage opens underneath, with its file and page range. The checkboxes in the sidebar decide which documents are searched, so you can question one document without the others getting in the way.
 
-![A dark-theme answer that draws on two documents](docs/dark.jpg)
+![An answer with its source passage open](docs/sources.jpg)
+
+A question doesn't have to stay inside one document. The one below asks about API rate limiting and about luxury marketing in the same sentence. The app runs a separate search for each half and answers both, citing a system design book for the first and a research paper for the second.
+
+![One question answered from two different documents](docs/dark.jpg)
+
+Follow-ups work as you'd expect. After a question about how long a function should be, "what about a class?" is rewritten into a complete question before anything is searched.
+
+## Running it
+
+You need Python 3.11 or newer and two free API keys, one from [Groq](https://console.groq.com/keys) and one from [Pinecone](https://app.pinecone.io).
+
+```bash
+python -m venv .venv
+.venv\Scripts\activate          # macOS/Linux: source .venv/bin/activate
+pip install -r requirements.txt
+copy .env.example .env          # macOS/Linux: cp .env.example .env
+```
+
+Put the two keys in `.env`, then start the server and open http://localhost:8000. On Windows, double-clicking `start.bat` does both.
+
+```bash
+uvicorn server:app --port 8000
+```
+
+The Pinecone index is created on first run. The app accepts PDF, `.docx`, legacy `.doc`, plain text and Markdown files.
+
+Two limits come with the free tiers. Groq caps tokens per minute, so several questions in quick succession slow down while the app waits and retries. Pinecone's Starter plan allows a limited number of rerank requests each month; when they run out, the app carries on with plain vector ranking.
+
+There is also a smaller Streamlit version of the interface, and a command for indexing a folder without the UI:
+
+```bash
+streamlit run app.py
+python -m docqa.ingest data/sample --namespace sample
+```
 
 ## How it works
 
@@ -46,143 +80,78 @@ flowchart LR
     end
 ```
 
-## Features
+Before any search runs, a small model looks at the question and the conversation so far. It rewrites follow-ups into standalone questions, and if the question is really two questions it splits them. Each part gets its own vector search, and the results are interleaved so no part is crowded out. This uses a separate, cheaper model than the one that writes answers, which also keeps the answer model under its rate limit.
 
-- **Cited answers**: every answer carries numbered citations; clicking one shows the passage, its file and its page range.
-- **Honest refusals**: weak matches are filtered out, and the model is told to refuse when the passages don't answer the question. It answers the part it can when only part is covered.
-- **Follow-up questions**: "what about for contractors?" is rewritten into a standalone question before searching.
-- **Multi-topic questions**: a question about two subjects, or two documents, is split into one search per topic so each part gets its own evidence.
-- **Reranking**: retrieved passages are re-scored against the question by a cross-encoder. If the reranker is unavailable, the app falls back to vector order.
-- **A library you control**: tick which documents a question should search, or remove one entirely.
-- **Suggested questions**: each upload gets a few example questions generated from its own text, shown as one-click starters.
-- **Large uploads**: books are indexed in batches with a progress bar, and an interrupted upload resumes where it stopped.
-- **Incremental ingestion**: chunk IDs are derived from file name and content, so re-uploading an unchanged file is skipped and a changed file replaces its old chunks.
-- **Word files**: reads `.docx` and legacy `.doc` as well as PDF, text and Markdown.
-- **Evaluation script**: measures retrieval, answer accuracy, citation rate and refusal behaviour on a question set.
-- **Light and dark themes**, a phone-sized layout, and streamed answers.
+Each search fetches 20 candidate passages. A cross-encoder reranker scores them against the question and the best five go to the answer model.
 
-## Setup
+The answer model sees only those passages, numbered, and is told to cite a number after each claim and to refuse if the passages don't contain the answer. There is a second guard before it: if nothing clears a similarity threshold, the app returns the refusal itself without calling the model.
 
-Requires Python 3.11 or newer (developed on 3.13) and free API keys for [Groq](https://console.groq.com/keys) and [Pinecone](https://app.pinecone.io).
+Chunks are allowed to run across page breaks, and each one records the range of pages it covers. Their IDs are a hash of the file's name and contents, so uploading the same file twice does nothing, uploading a changed version replaces the old passages, and an upload that gets interrupted picks up where it stopped.
+
+## Does it work?
+
+There is an evaluation script and two question sets. The small one, `eval/questions.jsonl`, covers the two sample documents in `data/sample`. The real one, `eval/library.jsonl`, has 38 questions about a mixed library: a 264-page book, a 14-page research paper and a long Word article. Of those, 34 can be answered from the documents (two need two documents at once) and 4 cannot. Each question lists the pages a correct answer has to come from. The documents themselves aren't in this repository.
 
 ```bash
-python -m venv .venv
-.venv\Scripts\activate          # macOS/Linux: source .venv/bin/activate
-pip install -r requirements.txt
-copy .env.example .env          # macOS/Linux: cp .env.example .env
-```
-
-Put your two keys in `.env`. The Pinecone index is created automatically on first run.
-
-Free-tier limits to be aware of: Groq caps tokens per minute, so several questions in quick succession slow down while the app waits and retries, and Pinecone's Starter plan includes a limited number of rerank requests per month.
-
-## Usage
-
-Start the web app and open http://localhost:8000 (on Windows, double-clicking `start.bat` does both):
-
-```bash
-uvicorn server:app --port 8000
-```
-
-Choose whether you're uploading a book, an article or a research paper, drop the files in, and ask questions once indexing finishes. Click a citation such as `[1]` in an answer to see the passage and page it came from.
-
-A simpler Streamlit version of the UI is also included:
-
-```bash
-streamlit run app.py
-```
-
-You can also index a folder from the command line:
-
-```bash
-python -m docqa.ingest data/sample --namespace sample
-```
-
-## Evaluation
-
-Two question sets are included:
-
-- `eval/questions.jsonl`: 16 questions on the small sample documents in `data/sample`.
-- `eval/library.jsonl`: 38 questions on a mixed library of one book (264 pages), one research paper (14 pages) and one long Word article. It has 34 answerable questions, two of which need two documents, and 4 the documents cannot answer. Each lists the pages a correct answer must come from. The documents themselves are not part of this repository.
-
-```bash
-python -m docqa.ingest data/sample --namespace sample
-python -m eval.run_eval --namespace sample
 python -m eval.run_eval --questions eval/library.jsonl
 ```
 
-Use `--retrieval-only` to skip answer generation, `--no-rerank` to turn the reranker off, `--top-k` / `--min-score` to compare settings, and `--out eval/results.json` to save per-question results.
-
-### Results on the mixed library
-
-| Metric | Result |
+| | Result |
 | --- | --- |
-| Right page retrieved (`retrieval_hit_rate`) | 34 / 34 |
-| Ranking of the right page (`retrieval_mrr`) | 0.944 |
-| Expected facts present in retrieved text (`context_recall`) | 34 / 34 |
-| Answers containing the expected facts (`answer_accuracy`) | 34 / 34 |
-| Answers with a citation (`citation_rate`) | 34 / 34 |
-| Unanswerable questions correctly refused | 4 / 4 |
-| Answerable questions wrongly refused | 0 / 34 |
+| Right page retrieved | 34 of 34 |
+| Mean reciprocal rank of the right page | 0.944 |
+| Answer contains the expected facts | 34 of 34 |
+| Answer includes a citation | 34 of 34 |
+| Unanswerable questions refused | 4 of 4 |
+| Answerable questions wrongly refused | 0 of 34 |
 
-Answer accuracy is a keyword check against expected facts, not a human or LLM judgement of the whole answer, and the questions were written by the project author with the documents open, so treat these as a regression check rather than a benchmark.
+These numbers need a caveat. "Contains the expected facts" is a keyword check, not a judgement of the whole answer, and I wrote the questions with the documents open in front of me. It works as a regression test. It is not a benchmark.
 
-### What the evaluation changed
+The more useful output was the list of things it caught along the way.
 
-- **Chunking across page breaks.** Chunks were first cut page by page, so a definition spanning two pages was split and one question could never be answered from a single passage. Pages are now joined before splitting and each chunk records the page range it covers.
-- **Text clean-up.** One PDF contained 790 "fi" ligature characters and others had words hyphenated across lines; both are repaired at ingestion.
-- **Search planning.** A question about two topics retrieved passages for only one of them and was refused. Splitting such questions into one search per topic fixed it. An early version of the planning prompt produced two or three near-duplicate searches for simple questions; tightening it brought that down to one.
-- **Reranker.** On an earlier, larger test library (three books, about 3,600 passages) reranking raised MRR from 0.87 to 0.97, mostly by pushing table-of-contents and index pages down. On the smaller mixed library above it reordered results but did not change MRR (0.944 with and without).
-- **Citation format.** The answer model sometimes cites as `[1†L3-L7]`; these are rewritten to `[1]` as the answer streams.
-- **Hybrid search was not added.** Vector search already retrieved the right page for every question, so the evidence did not justify the extra moving parts.
+Chunking page by page was a mistake. A definition that started at the bottom of one page and finished on the next was cut in half, and no single passage could answer the question about it. Joining the pages before splitting fixed that.
 
-### Metrics
+PDF text is dirtier than it looks. One book had 790 "fi" ligatures stored as a single character, so "first" didn't match "first". Others had words hyphenated across line breaks. Both are now repaired during ingestion.
 
-| Metric | Meaning |
-| --- | --- |
-| `retrieval_hit_rate` | Share of answerable questions where every expected document (and page, if given) was retrieved |
-| `retrieval_mrr` | Mean reciprocal rank of the first passage from an expected page |
-| `context_recall` | Share of answerable questions where the retrieved text contains the expected facts |
-| `answer_accuracy` | Share of answers containing the expected facts |
-| `citation_rate` | Share of answers that include a `[n]` citation |
-| `false_refusal_rate` | Answerable questions the system refused |
-| `correct_refusal_rate` | Unanswerable questions the system correctly refused |
+A two-topic question used to be refused outright. All five retrieved passages came from one topic, the model saw nothing about the other, and it declined the whole question. That is what the planning step is for. My first version of the planning prompt overcorrected and issued three near-identical searches for simple questions, so it took a second pass to get it down to one.
+
+The reranker's value depends on the library. On an earlier test set of three books (about 3,600 passages) it lifted mean reciprocal rank from 0.87 to 0.97, mostly by pushing table-of-contents and index pages out of the results. On the smaller library above it reordered results but the score stayed at 0.944 with or without it.
+
+I didn't add hybrid keyword search. Vector search was already finding the right page for every question, so there was no failure for it to fix.
+
+The script takes `--retrieval-only` to skip answer generation, `--no-rerank` to switch the reranker off, and `--out` to save per-question results.
 
 ## Tests
-
-The tests replace Pinecone and the LLM with in-memory fakes, so they need no API keys.
 
 ```bash
 pytest
 ```
 
-## Project layout
+There are 45 tests. They swap Pinecone and the language models for in-memory fakes, so they run offline and need no API keys.
+
+## Layout
 
 ```
-server.py           Web app: FastAPI backend and JSON API
-web/                Frontend (plain HTML, CSS and JavaScript, no build step)
-app.py              Alternative Streamlit UI
+server.py           FastAPI backend and JSON API
+web/                Frontend: HTML, CSS and JavaScript
+app.py              Streamlit version of the interface
 docqa/
-  config.py         Settings from .env
-  store.py          Pinecone index, embeddings and chat model clients
-  ingest.py         Load, chunk and upsert documents (also a CLI)
-  retriever.py      Vector search, reranking and merging results across queries
-  chain.py          Search planning, prompting, cited answers, suggested questions
-  word.py           Text extraction for .docx and legacy .doc files
+  config.py         Settings, read from .env
+  store.py          Pinecone index, embedding, chat and reranking clients
+  ingest.py         Reading, cleaning, chunking and uploading documents
+  retriever.py      Vector search, reranking, merging results across queries
+  chain.py          Search planning, prompts, cited answers, suggested questions
+  word.py           Text extraction for .docx and legacy .doc
   library.py        Local record of which documents are indexed
-eval/               Question sets and evaluation script
-data/sample/        Sample documents (fictional company)
-docs/               README screenshots
+eval/               Question sets and the evaluation script
+data/sample/        Two short sample documents about a fictional company
 tests/              Offline tests
 ```
 
-## Configuration
+## Settings
 
-All settings can be overridden in `.env`; see `.env.example`, which also shows the OpenAI variant. `CHAT_MODEL` uses LangChain's `provider:model` form, so switching to another provider means installing its LangChain package and changing one line. Changing `EMBEDDING_MODEL` to one with a different dimension needs a new `PINECONE_INDEX`, and `MIN_SCORE` should be re-tuned because each embedding model scores on a different scale.
+Everything is configurable in `.env`, and `.env.example` lists the options. Models are named in LangChain's `provider:model` form, so moving to OpenAI or another provider is a matter of installing its LangChain package and changing a line. If you switch to an embedding model with a different vector size you need a new Pinecone index, and the similarity threshold has to be re-tuned, because every embedding model scores on its own scale.
 
-## Possible next steps
+## What's missing
 
-- Hybrid search (BM25 + vectors), if a library turns up exact-term misses
-- Heading-aware chunking for Markdown and PDFs
-- LLM-judged faithfulness scoring (for example with Ragas)
-- OCR for scanned PDFs
+Scanned PDFs don't work, since there is no OCR. Chunking ignores headings, so a section title can be separated from its text. And the evaluation only checks for expected facts; scoring whether every sentence of an answer is supported by its sources would need an LLM judge, which is the next thing I'd add.
