@@ -108,7 +108,7 @@ Workspaces need no accounts. On first visit the browser generates a random ident
 
 This arrangement suits sharing with a small group. It has clear limits:
 
-- A free Render instance sleeps after 15 minutes without traffic, and the next request takes about a minute to wake it.
+- A free Render instance sleeps after 15 minutes without traffic, and the next request takes about a minute to wake it. The scheduled workflow in `.github/workflows/keep-awake.yml` prevents this by requesting the status endpoint every five minutes. It takes effect once the repository variable `APP_URL` is set to the deployed address. GitHub's scheduler can run late, so an occasional cold start remains possible, and one always-awake service uses nearly all of Render's 750 free hours per month.
 - All visitors draw on the same Groq and Pinecone free-tier quotas.
 - A library belongs to a browser, not a person. Clearing site data, or switching device, starts a new empty library.
 
@@ -223,6 +223,7 @@ eval/               Question sets and the evaluation script
 data/sample/        Two short sample documents about a fictional company
 tests/              Offline tests
 render.yaml         Render Blueprint for hosting
+.github/workflows/  Scheduled job that keeps the hosted instance awake
 Dockerfile          Container image for other hosts
 ```
 

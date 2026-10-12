@@ -1,0 +1,30 @@
+# Free Render instances sleep after 15 minutes without traffic. This requests
+# the hosted app every five minutes so it stays awake.
+#
+# It does nothing until the repository variable APP_URL is set to the deployed
+# address, e.g. https://docqa-xxxx.onrender.com (Settings > Secrets and
+# variables > Actions > Variables).
+name: Keep awake
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  ping:
+    if: vars.APP_URL != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Request the status endpoint
+        env:
+          APP_URL: ${{ vars.APP_URL }}
+        # A sleeping instance takes about a minute to answer its first request.
+        run: >
+          curl --silent --show-error --fail --max-time 120
+          --retry 2 --retry-delay 10
+          --output /dev/null --write-out "HTTP %{http_code} in %{time_total}s\n"
+          "${APP_URL%/}/api/status"
