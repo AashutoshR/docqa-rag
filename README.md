@@ -2,9 +2,27 @@
 
 A retrieval-augmented generation (RAG) chatbot. Upload books, articles or research papers (PDF, Word, text or Markdown), ask questions, and get answers that cite the exact passages and pages they came from. If the documents don't contain the answer, it says so instead of guessing.
 
-![DocQA answering a question with numbered citations](docs/screenshot.jpg)
+![DocQA answering a question with numbered citations](docs/answer.jpg)
 
 Built with Python, LangChain, Pinecone and FastAPI, with a plain HTML, CSS and JavaScript frontend. By default it runs entirely on free tiers: Groq for the chat models and Pinecone for embeddings, vector search and reranking. OpenAI can be swapped in through settings.
+
+## Screenshots
+
+**1. Upload.** The app opens by asking what you want to upload: a book, an article or a research paper.
+
+![The upload screen with three document types and a drop zone](docs/upload.jpg)
+
+**2. Library.** Uploads are indexed with a progress bar and queue one after another. Each document gets suggested questions generated from its own text.
+
+![The library sidebar showing upload progress, with suggested questions in the main area](docs/library.jpg)
+
+**3. Cited answers.** Clicking a citation opens the passage it came from. Here only two of five documents are ticked, so the search is limited to them, and the question was split into two searches.
+
+![An answer with its source passage open, searching two of five documents](docs/sources.jpg)
+
+**4. Questions across documents.** One question about two unrelated topics is answered from a book and a research paper together, each part cited separately. Shown in the dark theme.
+
+![A dark-theme answer that draws on two documents](docs/dark.jpg)
 
 ## How it works
 
@@ -154,7 +172,7 @@ docqa/
   library.py        Local record of which documents are indexed
 eval/               Question sets and evaluation script
 data/sample/        Sample documents (fictional company)
-docs/               README screenshot
+docs/               README screenshots
 tests/              Offline tests
 ```
 
