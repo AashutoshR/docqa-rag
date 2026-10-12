@@ -1,0 +1,16 @@
+{"question": "How many days of paid annual leave do full-time employees get?", "source": "employee_handbook.md", "must_include": ["24"]}
+{"question": "How many unused leave days can be carried over, and by when must they be used?", "source": "employee_handbook.md", "must_include": ["5", "31 March"]}
+{"question": "Which day is everyone expected to be in the office?", "source": "employee_handbook.md", "must_include": ["Tuesday"]}
+{"question": "What is the annual learning budget per employee?", "source": "employee_handbook.md", "must_include": ["1,500"]}
+{"question": "How long do I have to submit an expense claim?", "source": "employee_handbook.md", "must_include": ["30 days"]}
+{"question": "How much parental leave does a secondary caregiver get?", "source": "employee_handbook.md", "must_include": ["6 weeks"]}
+{"question": "When do salary adjustments take effect?", "source": "employee_handbook.md", "must_include": ["1 February"]}
+{"question": "What is the minimum password length?", "source": "it_security_policy.md", "must_include": ["14"]}
+{"question": "Can I use SMS codes as my second factor?", "source": "it_security_policy.md", "must_include": ["not"]}
+{"question": "How quickly must a stolen laptop be reported?", "source": "it_security_policy.md", "must_include": ["1 hour"]}
+{"question": "How is customer personal data classified?", "source": "it_security_policy.md", "must_include": ["Restricted"]}
+{"question": "How long is administrator access granted for?", "source": "it_security_policy.md", "must_include": ["90 days"]}
+{"question": "How often are simulated phishing exercises run?", "source": "it_security_policy.md", "must_include": ["monthly"]}
+{"question": "What is the company's policy on bringing pets to the office?", "answerable": false}
+{"question": "What was Brightleaf Labs' revenue last year?", "answerable": false}
+{"question": "Who won the 2018 football World Cup?", "answerable": false}

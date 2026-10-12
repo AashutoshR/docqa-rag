@@ -1,0 +1,6 @@
+.env
+.venv/
+.docqa/
+__pycache__/
+.pytest_cache/
+eval/results*.json

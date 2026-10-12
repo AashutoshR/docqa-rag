@@ -1,0 +1,38 @@
+{"question": "How does the token bucket algorithm work?", "source": "SystemDesignInterview.pdf", "pages": [54, 55, 56], "must_include": ["token", ["capacity", "full"]]}
+{"question": "How does the leaking bucket algorithm process requests?", "source": "SystemDesignInterview.pdf", "pages": [58, 59], "must_include": ["fixed", ["FIFO", "queue"]]}
+{"question": "What problem with the fixed window counter does the sliding window log algorithm fix?", "source": "SystemDesignInterview.pdf", "pages": [59, 60, 61], "must_include": [["edges", "edge", "boundary", "boundaries"]]}
+{"question": "What are virtual nodes used for in consistent hashing?", "source": "SystemDesignInterview.pdf", "pages": [80, 81, 82], "must_include": [["balanc", "evenly", "uniform"]]}
+{"question": "What is a vector clock and what is it used to check?", "source": "SystemDesignInterview.pdf", "pages": [98, 99], "must_include": ["version", "conflict"]}
+{"question": "What is hinted handoff used for?", "source": "SystemDesignInterview.pdf", "pages": [101, 102], "must_include": ["temporary"]}
+{"question": "What is a Merkle tree used for in a key-value store?", "source": "SystemDesignInterview.pdf", "pages": [102, 103], "must_include": [["inconsistency", "inconsistencies", "inconsistent"]]}
+{"question": "How many bits are used for the timestamp and the sequence number in a Twitter snowflake ID?", "source": "SystemDesignInterview.pdf", "pages": [114, 115, 116], "must_include": ["41", "12"]}
+{"question": "For how many years will a 41-bit timestamp ID generator keep working?", "source": "SystemDesignInterview.pdf", "pages": [116], "must_include": ["69"]}
+{"question": "What is the difference between a 301 redirect and a 302 redirect?", "source": "SystemDesignInterview.pdf", "pages": [122], "must_include": ["permanently", ["temporarily", "temporary"]]}
+{"question": "What does politeness mean for a web crawler?", "source": "SystemDesignInterview.pdf", "pages": [134, 141, 142], "must_include": [["too many requests", "many requests", "same host", "one page at a time", "delay"]]}
+{"question": "What are the two fanout models for a news feed system?", "source": "SystemDesignInterview.pdf", "pages": [172, 173], "must_include": [["push", "fanout on write"], ["pull", "fanout on read"]]}
+{"question": "How does long polling work?", "source": "SystemDesignInterview.pdf", "pages": [182], "must_include": [["connection open", "holds the connection", "keeps the connection", "open"], "timeout"]}
+{"question": "Which data structure is used to build the search autocomplete system?", "source": "SystemDesignInterview.pdf", "pages": [206, 207, 208, 212], "must_include": ["trie"]}
+{"question": "In quorum consensus, what do N, W and R stand for?", "source": "SystemDesignInterview.pdf", "pages": [95, 96], "must_include": ["replicas", "write", "read"]}
+{"question": "How does the gossip protocol detect that a node is down?", "source": "SystemDesignInterview.pdf", "pages": [100, 101], "must_include": ["heartbeat"]}
+{"question": "What kind of content does a CDN deliver?", "source": "SystemDesignInterview.pdf", "pages": [17, 18, 19], "must_include": ["static"]}
+{"question": "How do you make the web tier stateless?", "source": "SystemDesignInterview.pdf", "pages": [20, 21], "must_include": ["session"]}
+{"question": "How many boutiques does Louis Vuitton have, and in how many countries?", "source": "Copyofreetsresearchpaper1.pdf", "pages": [8], "must_include": ["360", "54"]}
+{"question": "Which brands are leading the penetration of luxury into China and Russia?", "source": "Copyofreetsresearchpaper1.pdf", "pages": [8], "must_include": ["Rolex", "Cartier"]}
+{"question": "What was the Prada Kolhapuri sandal controversy?", "source": "Copyofreetsresearchpaper1.pdf", "pages": [9], "must_include": ["Kolhapuri", ["artisans", "geographical indication", "India"]]}
+{"question": "Which social media platforms do luxury brands use for marketing?", "source": "Copyofreetsresearchpaper1.pdf", "pages": [3, 7], "must_include": ["instagram", "tiktok"]}
+{"question": "How do luxury brands use exclusivity and scarcity to influence customers?", "source": "Copyofreetsresearchpaper1.pdf", "pages": [5, 6], "must_include": [["urgency", "desire"]]}
+{"question": "What will the future of luxury brand marketing include?", "source": "Copyofreetsresearchpaper1.pdf", "pages": [1, 9, 10], "must_include": ["sustainability", ["experiential", "technology"]]}
+{"question": "Why are counterfeit products a problem for luxury brands?", "source": "Copyofreetsresearchpaper1.pdf", "pages": [2, 8], "must_include": [["value", "financial losses", "demand"]]}
+{"question": "What is the order of the number of paths expanded on a depth-first search at depth k?", "source": "Numerical_methods-Algorithms_III_and_other_papers_revision_version_8_14_February_20281.doc", "must_include": [["O(bk)", "O(b^k)", "b^k", "bk", "bᵏ"]]}
+{"question": "Which university course is cited for the claim that most problems reduce to searching and sorting?", "source": "Numerical_methods-Algorithms_III_and_other_papers_revision_version_8_14_February_20281.doc", "must_include": ["Syracuse"]}
+{"question": "What kind of mapping did the author first think was needed, and which function was the candidate?", "source": "Numerical_methods-Algorithms_III_and_other_papers_revision_version_8_14_February_20281.doc", "must_include": ["contraction", ["log", "logarithmic"]]}
+{"question": "What does the author suggest storing in a second meta-data layer?", "source": "Numerical_methods-Algorithms_III_and_other_papers_revision_version_8_14_February_20281.doc", "must_include": ["heuristics about heuristics"]}
+{"question": "Which informed search strategy can be run with a depth-first or an iterative deepening search?", "source": "Numerical_methods-Algorithms_III_and_other_papers_revision_version_8_14_February_20281.doc", "must_include": [["branch and bound", "branch-and-bound"]]}
+{"question": "Which function does the article use to model the singularity of the big bang?", "source": "Numerical_methods-Algorithms_III_and_other_papers_revision_version_8_14_February_20281.doc", "must_include": ["dirac"]}
+{"question": "Who is the author of the article on numerical methods and search algorithms?", "source": "Numerical_methods-Algorithms_III_and_other_papers_revision_version_8_14_February_20281.doc", "must_include": ["Fadele"]}
+{"question": "What kind of content does a CDN deliver, and how many boutiques does Louis Vuitton have?", "evidence": [{"source": "SystemDesignInterview.pdf", "pages": [17, 18, 19]}, {"source": "Copyofreetsresearchpaper1.pdf", "pages": [8]}], "must_include": ["static", "360"]}
+{"question": "How does the token bucket algorithm work, and how do luxury brands use scarcity?", "evidence": [{"source": "SystemDesignInterview.pdf", "pages": [54, 55, 56]}, {"source": "Copyofreetsresearchpaper1.pdf", "pages": [5, 6]}], "must_include": ["token", ["urgency", "desire", "exclusiv"]]}
+{"question": "What is the capital of Australia?", "answerable": false}
+{"question": "What is the recommended dose of ibuprofen for adults?", "answerable": false}
+{"question": "How does the Raft consensus algorithm elect a leader?", "answerable": false}
+{"question": "What is Gucci's annual revenue?", "answerable": false}

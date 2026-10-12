@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DocQA</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5' fill='%231f5f4a'/%3E%3Cpath d='M7.5 6h7a2 2 0 0 1 2 2v10h-7a2 2 0 0 1-2-2V6Zm0 10a2 2 0 0 1 2-2h7' fill='none' stroke='white' stroke-width='1.5'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/static/style.css">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js"></script>
+  <script defer src="/static/app.js"></script>
+</head>
+<body>
+  <svg hidden>
+    <symbol id="i-book" viewBox="0 0 24 24"><path d="M5 4.5A1.5 1.5 0 0 1 6.5 3H19v15H6.5A1.5 1.5 0 0 0 5 19.5v-15Z"/><path d="M5 19.5A1.5 1.5 0 0 0 6.5 21H19"/><path d="M9 7.5h6"/></symbol>
+    <symbol id="i-article" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="1.5"/><path d="M8 8.5h8M8 12h8M8 15.5h5"/></symbol>
+    <symbol id="i-paper" viewBox="0 0 24 24"><path d="M7 3h7l4 4v14H7V3Z"/><path d="M14 3v4h4"/><path d="M10 12h5M10 15.5h5M10 8.5h1.5"/></symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 16V5"/><path d="m7.5 9.5 4.5-4.5 4.5 4.5"/><path d="M5 19h14"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-send" viewBox="0 0 24 24"><path d="M12 19V5"/><path d="m6 11 6-6 6 6"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+  </svg>
+
+  <div id="banner" class="banner" hidden></div>
+
+  <!-- Shown until the library has its first document -->
+  <main id="welcome" class="welcome" hidden>
+    <p class="brand">DocQA</p>
+    <h1>Upload a book, article or research paper</h1>
+    <p class="lede">Then ask questions in plain language. Every answer points to the page it came from, and says so when your documents don't cover it.</p>
+    <!-- One uploader, moved between here and the dialog -->
+    <div id="welcome-uploader">
+      <div id="uploader" class="uploader">
+        <fieldset class="kinds">
+          <legend>What are you uploading?</legend>
+          <label class="kind">
+            <input type="radio" name="kind" value="book" checked>
+            <svg class="icon"><use href="#i-book"/></svg>
+            <span class="kind-name">Book</span>
+            <span class="kind-hint">Textbooks, guides, manuals</span>
+          </label>
+          <label class="kind">
+            <input type="radio" name="kind" value="article">
+            <svg class="icon"><use href="#i-article"/></svg>
+            <span class="kind-name">Article</span>
+            <span class="kind-hint">Essays, blog posts, reports</span>
+          </label>
+          <label class="kind">
+            <input type="radio" name="kind" value="paper">
+            <svg class="icon"><use href="#i-paper"/></svg>
+            <span class="kind-name">Research paper</span>
+            <span class="kind-hint">Journal and conference papers</span>
+          </label>
+        </fieldset>
+        <label id="dropzone" class="dropzone">
+          <input id="files" type="file" accept=".pdf,.docx,.doc,.txt,.md" multiple>
+          <svg class="icon"><use href="#i-upload"/></svg>
+          <span class="dropzone-title">Drop files here, or <u>choose files</u></span>
+          <span class="dropzone-hint">PDF, Word, TXT or Markdown, up to 100 MB each</span>
+        </label>
+        <p id="upload-error" class="upload-error" role="alert" hidden></p>
+      </div>
+    </div>
+    <ul id="welcome-jobs" class="jobs"></ul>
+  </main>
+
+  <!-- Shown once there is something to ask about -->
+  <div id="workspace" class="workspace" hidden>
+    <aside id="sidebar" class="sidebar">
+      <div class="sidebar-head">
+        <p class="brand">DocQA</p>
+        <div class="sidebar-actions">
+          <button id="new-chat" class="button small plain" type="button">New chat</button>
+          <button id="add" class="button primary small" type="button">
+            <svg class="icon"><use href="#i-plus"/></svg>Add
+          </button>
+        </div>
+      </div>
+      <h2 class="label">Your library</h2>
+      <ul id="jobs" class="jobs"></ul>
+      <ul id="documents" class="documents"></ul>
+      <p id="scope" class="scope"></p>
+      <p id="models" class="models"></p>
+    </aside>
+
+    <section class="chat">
+      <header class="chat-head">
+        <button id="menu" class="icon-button" type="button" aria-label="Show library">
+          <svg class="icon"><use href="#i-menu"/></svg>
+        </button>
+        <span class="brand">DocQA</span>
+      </header>
+      <div id="thread" class="thread">
+        <div id="empty" class="empty">
+          <h1>What would you like to know?</h1>
+          <p>Ask about a concept, a definition, a comparison or a specific detail. Answers come only from the documents ticked in your library.</p>
+          <div id="suggestions" class="suggestions" hidden>
+            <h2 class="label">Try asking</h2>
+          </div>
+        </div>
+      </div>
+      <form id="composer" class="composer">
+        <textarea id="question" rows="1" placeholder="Ask your library a question" aria-label="Your question"></textarea>
+        <button id="send" class="send" type="submit" aria-label="Ask">
+          <svg class="icon"><use href="#i-send"/></svg>
+        </button>
+      </form>
+    </section>
+  </div>
+
+  <dialog id="add-dialog" class="dialog">
+    <div class="dialog-head">
+      <h2>Add to your library</h2>
+      <button id="add-close" class="icon-button" type="button" aria-label="Close">
+        <svg class="icon"><use href="#i-close"/></svg>
+      </button>
+    </div>
+    <div id="dialog-uploader"></div>
+  </dialog>
+
+</body>
+</html>
