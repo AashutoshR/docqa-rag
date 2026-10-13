@@ -10,6 +10,8 @@ const state = {
   excluded: new Set(), // names of documents unticked in the library
   history: [],
   busy: false,
+  chats: [], // saved conversations, kept in this browser only
+  chatId: null, // the saved chat on screen, or null for a new one
 };
 let pollTimer;
 
@@ -288,9 +290,127 @@ function updateComposer() {
 function newChat() {
   document.querySelectorAll(".turn").forEach((turn) => turn.remove());
   state.history = [];
+  state.chatId = null;
   $("empty").hidden = false;
+  renderChats();
   updateComposer();
   $("question").focus();
+}
+
+/* Saved chats: stored in this browser, never on the server */
+
+const CHATS_KEY = "docqa-chats";
+const MAX_CHATS = 50;
+
+function loadChats() {
+  try {
+    const chats = JSON.parse(stored(CHATS_KEY) || "[]");
+    return Array.isArray(chats) ? chats.filter((chat) => chat?.id && Array.isArray(chat.turns)) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveChats() {
+  state.chats.sort((a, b) => b.updated - a.updated);
+  state.chats.splice(MAX_CHATS);
+  for (;;) {
+    try {
+      localStorage.setItem(CHATS_KEY, JSON.stringify(state.chats));
+      break;
+    } catch (error) {
+      // When storage is full, let go of the oldest chat and try again. If storage
+      // is unavailable altogether, the chats last until the page is closed.
+      const full = /quota/i.test(error?.name || "");
+      const oldest = state.chats.findLast((chat) => chat.id !== state.chatId);
+      if (!full || !oldest) break;
+      state.chats.splice(state.chats.indexOf(oldest), 1);
+    }
+  }
+  renderChats();
+}
+
+// Add a finished question and answer to the chat on screen, creating it if new.
+function recordTurn(turn) {
+  let chat = state.chats.find((saved) => saved.id === state.chatId);
+  if (!chat) {
+    const id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    chat = { id, title: turn.question.slice(0, 120), turns: [] };
+    state.chats.push(chat);
+    state.chatId = id;
+  }
+  chat.turns.push(turn);
+  chat.updated = Date.now();
+  saveChats();
+}
+
+function openChat(id) {
+  const chat = state.chats.find((saved) => saved.id === id);
+  if (!chat || state.busy) return;
+  document.querySelectorAll(".turn").forEach((turn) => turn.remove());
+  state.chatId = id;
+  state.history = chat.turns.flatMap((turn) => [
+    { role: "user", content: turn.question },
+    { role: "assistant", content: turn.text },
+  ]);
+  $("empty").hidden = true;
+  $("thread").append(...chat.turns.map(turnElement));
+  $("thread").scrollTop = $("thread").scrollHeight;
+  $("sidebar").classList.remove("open");
+  renderChats();
+  updateComposer();
+}
+
+function deleteChat(id) {
+  state.chats = state.chats.filter((saved) => saved.id !== id);
+  if (id === state.chatId) newChat();
+  saveChats();
+}
+
+function renderChats() {
+  $("chats").replaceChildren(...state.chats.map(chatRow));
+  $("chats-note").textContent = state.chats.length
+    ? "Saved in this browser only, not on the server."
+    : "Your chats will be saved here, in this browser only.";
+}
+
+function chatRow(chat) {
+  const row = el("li", chat.id === state.chatId ? "chat-row current" : "chat-row");
+  const open = el("button", "chat-open");
+  open.type = "button";
+  open.title = chat.title;
+  const date = new Date(chat.updated).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+  const count = chat.turns.length;
+  open.append(
+    el("span", "chat-title", chat.title),
+    el("span", "chat-date", `${date} · ${count} ${count === 1 ? "question" : "questions"}`),
+  );
+  open.onclick = () => openChat(chat.id);
+
+  const remove = el("button", "icon-button");
+  remove.type = "button";
+  remove.setAttribute("aria-label", `Delete saved chat: ${chat.title}`);
+  remove.append(icon("close"));
+  remove.onclick = () => {
+    if (state.busy || !confirm(`Delete this saved chat?\n\n"${chat.title}"`)) return;
+    deleteChat(chat.id);
+  };
+
+  row.append(open, remove);
+  return row;
+}
+
+// A saved question and answer, drawn the way it looked when it was first given.
+function turnElement(saved) {
+  const turn = el("article", "turn");
+  const searched = el("div", "searched", saved.searched || "");
+  searched.hidden = !saved.searched;
+  const answer = el("div", "answer");
+  answer.innerHTML = toHtml(saved.text);
+  linkCitations(answer, saved.sources.length);
+  turn.append(el("div", "asked", saved.question), searched, answer);
+  if (saved.found && saved.sources.length) turn.append(sourcesPanel(saved.sources, saved.text));
+  return turn;
 }
 
 function toHtml(markdown) {
@@ -444,6 +564,13 @@ async function ask(question) {
         paint();
         if (event.found && sources.length) turn.append(sourcesPanel(sources, text));
         state.history.push({ role: "user", content: question }, { role: "assistant", content: text });
+        recordTurn({
+          question,
+          searched: searched.hidden ? "" : searched.textContent,
+          text,
+          sources: event.found ? sources : [],
+          found: event.found,
+        });
       } else if (event.type === "error") {
         fail(event.message);
       }
@@ -495,6 +622,14 @@ function setUpChat() {
   });
 
   $("new-chat").onclick = newChat;
+  state.chats = loadChats();
+  renderChats();
+  // Keep the list current when another tab of this app saves or deletes a chat.
+  window.addEventListener("storage", (event) => {
+    if (event.key !== CHATS_KEY) return;
+    state.chats = loadChats();
+    renderChats();
+  });
   $("menu").onclick = (event) => {
     event.stopPropagation();
     $("sidebar").classList.toggle("open");

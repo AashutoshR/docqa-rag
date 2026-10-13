@@ -268,6 +268,32 @@ button { cursor: pointer; }
 .document .icon-button:hover { background: var(--danger-soft); color: var(--danger); }
 
 .scope { padding: 0 4px; color: var(--muted); font-size: 0.85rem; }
+
+.sidebar .saved-label { margin-top: 14px; }
+.chats { display: grid; gap: 2px; }
+.chat-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  padding-right: 6px;
+  border-radius: 8px;
+}
+.chat-row:hover, .chat-row.current { background: var(--line); }
+.chat-open {
+  display: grid;
+  min-width: 0;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  text-align: left;
+}
+.chat-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.chat-row.current .chat-title { font-weight: 600; }
+.chat-date { color: var(--muted); font-size: 0.8rem; }
+.chat-row .icon-button { width: 26px; height: 26px; opacity: 0; }
+.chat-row:hover .icon-button, .chat-row .icon-button:focus-visible { opacity: 1; }
+.chat-row .icon-button:hover { background: var(--danger-soft); color: var(--danger); }
 .models { margin-top: auto; padding: 8px 4px 0; color: var(--muted); font-size: 0.75rem; overflow-wrap: anywhere; }
 
 /* Chat */
@@ -475,5 +501,5 @@ button { cursor: pointer; }
     transition: transform 0.2s;
   }
   .sidebar.open { transform: none; box-shadow: 0 0 0 100vmax rgb(0 0 0 / 0.4); }
-  .document .icon-button { opacity: 1; }
+  .document .icon-button, .chat-row .icon-button { opacity: 1; }
 }

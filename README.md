@@ -59,6 +59,8 @@ A question is not confined to one document. The example below asks about API rat
 
 Follow-up questions are resolved against the conversation. After a question about how long a function should be, "what about a class?" is rewritten into a complete question before retrieval.
 
+Conversations are saved automatically and listed in the sidebar, where they can be reopened, continued or deleted. They are held in the browser's local storage on the user's own machine. The application server stores no questions or answers.
+
 ## Installation
 
 Requirements: Python 3.11 or newer, and two free API keys, one from [Groq](https://console.groq.com/keys) and one from [Pinecone](https://app.pinecone.io).
